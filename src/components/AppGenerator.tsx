@@ -424,6 +424,14 @@ export const AppGenerator: React.FC = () => {
               </div>
 
               <div style={{ flexGrow: 1, overflow: 'hidden' }}>
+                {activeTab === 'blueprint' && (
+                  <BlueprintPanel
+                    template={generatedApp}
+                    prompt={prompt}
+                    backendType={backendType}
+                    dbType={dbType}
+                  />
+                )}
                 {activeTab === 'code'    && <CodeViewer    template={generatedApp} />}
                 {activeTab === 'uml'     && <UmlVisualizer template={generatedApp} />}
                 {activeTab === 'preview' && <LivePreview   template={generatedApp} />}
