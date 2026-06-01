@@ -138,15 +138,12 @@ export const AppGenerator: React.FC = () => {
 
     setProgress(100);
 
-    const matchKey =
-      Object.keys(APP_TEMPLATES).find(key =>
-        prompt.toLowerCase().includes(key) ||
-        prompt.toLowerCase().includes(APP_TEMPLATES[key].name.toLowerCase())
-      ) ?? selectedTemplateId;
-
+    const matchKey = inferTemplateId(prompt, selectedTemplateId);
     const matched = APP_TEMPLATES[matchKey] ?? APP_TEMPLATES.ecommerce;
-    setGeneratedApp(matched);
-    setActiveTab('code');
+    const composedProject = composeGeneratedProject(matched, { prompt, backendType, dbType });
+
+    setGeneratedApp(composedProject);
+    setActiveTab('blueprint');
     setIsGenerating(false);
 
     // Persist to history
@@ -174,12 +171,20 @@ export const AppGenerator: React.FC = () => {
   };
 
   const handleRestoreFromHistory = (template: AppTemplate, entry: HistoryEntry) => {
-    setGeneratedApp(template);
+    const restoredDbType = entry.dbType as DatabaseType;
+    const restoredBackendType = entry.backendType as BackendType;
+    const composedProject = composeGeneratedProject(template, {
+      prompt: entry.prompt,
+      dbType: restoredDbType,
+      backendType: restoredBackendType,
+    });
+
+    setGeneratedApp(composedProject);
     setPrompt(entry.prompt);
     setSelectedTemplateId(entry.templateId);
-    setDbType(entry.dbType as 'MySQL' | 'PostgreSQL');
-    setBackendType(entry.backendType as 'NodeJS' | 'Laravel');
-    setActiveTab('code');
+    setDbType(restoredDbType);
+    setBackendType(restoredBackendType);
+    setActiveTab('blueprint');
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -301,7 +306,7 @@ export const AppGenerator: React.FC = () => {
                   style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem' }}
                   disabled={user?.role !== 'Admin' || isGenerating}
                   value={dbType}
-                  onChange={e => setDbType(e.target.value as 'MySQL' | 'PostgreSQL')}
+                  onChange={e => setDbType(e.target.value as DatabaseType)}
                 >
                   <option value="MySQL">MySQL</option>
                   <option value="PostgreSQL">PostgreSQL</option>
@@ -314,7 +319,7 @@ export const AppGenerator: React.FC = () => {
                   style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem' }}
                   disabled={user?.role !== 'Admin' || isGenerating}
                   value={backendType}
-                  onChange={e => setBackendType(e.target.value as 'NodeJS' | 'Laravel')}
+                  onChange={e => setBackendType(e.target.value as BackendType)}
                 >
                   <option value="NodeJS">Node.js Express</option>
                   <option value="Laravel">Laravel PHP</option>
@@ -393,10 +398,11 @@ export const AppGenerator: React.FC = () => {
               <div className="panel-tabs" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '0.25rem' }}>
                   {([
-                    { id: 'code',    label: '⌨  Code Source' },
-                    { id: 'uml',     label: '🔷 Diagrammes UML' },
-                    { id: 'preview', label: '▶  Live Preview' },
-                    { id: 'kpis',    label: '📊 KPIs & Métriques' },
+                    { id: 'blueprint', label: 'Blueprint' },
+                    { id: 'code',      label: 'Code Source' },
+                    { id: 'uml',       label: 'Diagrammes UML' },
+                    { id: 'preview',   label: 'Live Preview' },
+                    { id: 'kpis',      label: 'KPIs & Metriques' },
                   ] as { id: ActiveTab; label: string }[]).map(tab => (
                     <button
                       key={tab.id}
