@@ -12,10 +12,13 @@ import { CodeViewer } from './CodeViewer';
 import { UmlVisualizer } from './UmlVisualizer';
 import { LivePreview } from './LivePreview';
 import { KpiPanel } from './KpiPanel';
+import { BlueprintPanel } from './BlueprintPanel';
 import {
   HistoryPanel, saveHistoryEntry, loadHistory,
 } from './HistoryPanel';
 import type { HistoryEntry } from './HistoryPanel';
+import { composeGeneratedProject } from '../utils/projectComposer';
+import type { BackendType, DatabaseType } from '../utils/projectComposer';
 
 // Helper to trigger confetti safely
 const triggerConfetti = async () => {
@@ -35,7 +38,27 @@ const triggerConfetti = async () => {
 // Generates a simple unique ID
 const genId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
-type ActiveTab = 'code' | 'uml' | 'preview' | 'kpis';
+type ActiveTab = 'blueprint' | 'code' | 'uml' | 'preview' | 'kpis';
+
+const TEMPLATE_KEYWORDS: Record<string, string[]> = {
+  ecommerce: ['ecommerce', 'e-commerce', 'boutique', 'commerce', 'panier', 'produit', 'commande'],
+  delivery: ['delivery', 'livraison', 'logistique', 'livreur', 'colis', 'course', 'chauffeur'],
+  bi: ['bi', 'business intelligence', 'analytics', 'analytique', 'dashboard', 'kpi', 'statistique'],
+  school: ['school', 'scolaire', 'ecole', 'eleve', 'enseignant', 'classe', 'notes'],
+  hotel: ['hotel', 'hoteliere', 'reservation hotel', 'chambre', 'suite', 'facture'],
+  crm: ['crm', 'client', 'prospect', 'lead', 'pipeline', 'commercial', 'opportunite'],
+  pharmacy: ['pharmacy', 'pharmacie', 'medicament', 'ordonnance', 'stock', 'molecule'],
+  booking: ['booking', 'reservation', 'rendez-vous', 'rdv', 'planning', 'calendrier', 'creneau'],
+};
+
+const inferTemplateId = (prompt: string, fallbackId: string) => {
+  const normalized = prompt.toLowerCase();
+  const match = Object.entries(TEMPLATE_KEYWORDS).find(([, keywords]) =>
+    keywords.some((keyword) => normalized.includes(keyword)),
+  );
+
+  return match?.[0] ?? fallbackId;
+};
 
 export const AppGenerator: React.FC = () => {
   const { user } = useAuth();
@@ -43,8 +66,8 @@ export const AppGenerator: React.FC = () => {
   // ── Input ─────────────────────────────────────────────────────────────────
   const [prompt, setPrompt] = useState<string>('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('ecommerce');
-  const [dbType, setDbType] = useState<'MySQL' | 'PostgreSQL'>('MySQL');
-  const [backendType, setBackendType] = useState<'NodeJS' | 'Laravel'>('NodeJS');
+  const [dbType, setDbType] = useState<DatabaseType>('MySQL');
+  const [backendType, setBackendType] = useState<BackendType>('NodeJS');
   const [presetSearch, setPresetSearch] = useState<string>('');
 
   // ── Generation status ─────────────────────────────────────────────────────
@@ -54,7 +77,7 @@ export const AppGenerator: React.FC = () => {
   const [generatedApp, setGeneratedApp] = useState<AppTemplate | null>(null);
 
   // ── UI state ──────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<ActiveTab>('code');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('blueprint');
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [historyCount] = useState<number>(() => loadHistory().length);
 
