@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "node server.mjs",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js"
+    "start": "node server.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",
