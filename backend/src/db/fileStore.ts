@@ -85,4 +85,13 @@ export const store = {
     if (!isAdmin && generation.userId !== userId) return null;
     return generation;
   },
+
+  async deleteGeneration(id: string, userId: string, isAdmin: boolean): Promise<boolean> {
+    const db = await readDb();
+    const index = db.generations.findIndex((item) => item.id === id && (isAdmin || item.userId === userId));
+    if (index === -1) return false;
+    db.generations.splice(index, 1);
+    await writeDb(db);
+    return true;
+  },
 };

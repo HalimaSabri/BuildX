@@ -84,4 +84,15 @@ router.get('/:id/download', asyncHandler(async (req, res) => {
   res.send(zip);
 }));
 
+router.delete('/:id', asyncHandler(async (req, res) => {
+  const success = await store.deleteGeneration(req.params.id, req.user!.id, req.user!.role === 'Admin');
+
+  if (!success) {
+    res.status(404).json({ error: 'Generation not found' });
+    return;
+  }
+
+  res.status(204).end();
+}));
+
 export { router as generationRoutes };
