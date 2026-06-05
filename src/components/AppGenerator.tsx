@@ -253,17 +253,6 @@ export const AppGenerator: React.FC = () => {
             >
               <History size={14} />
               Historique
-              {loadHistory().length > 0 && (
-                <span style={{
-                  position: 'absolute', top: '-6px', right: '-6px',
-                  background: 'var(--accent-primary)', color: '#fff',
-                  fontSize: '0.6rem', fontWeight: 700,
-                  width: '16px', height: '16px', borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {loadHistory().length}
-                </span>
-              )}
             </button>
           </div>
 
