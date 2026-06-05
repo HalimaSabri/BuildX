@@ -347,6 +347,17 @@ const routes = {
     });
     res.end(buffer);
   },
+
+  async deleteGeneration(req, res, id) {
+    const user = await getUserFromRequest(req);
+    if (!user) return json(res, 401, { error: 'Unauthorized' });
+    const db = await readDb();
+    const idx = db.generations.findIndex((item) => item.id === id && (user.role === 'Admin' || item.userId === user.id));
+    if (idx === -1) return json(res, 404, { error: 'Generation not found' });
+    db.generations.splice(idx, 1);
+    await writeDb(db);
+    return json(res, 204, {});
+  },
 };
 
 const server = http.createServer(async (req, res) => {
@@ -363,7 +374,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/generations') return routes.listGenerations(req, res);
 
     const generationMatch = url.pathname.match(/^\/api\/generations\/([^/]+)$/);
-    if (req.method === 'GET' && generationMatch) return routes.getGeneration(req, res, generationMatch[1]);
+    if (generationMatch) {
+      if (req.method === 'GET') return routes.getGeneration(req, res, generationMatch[1]);
+      if (req.method === 'DELETE') return routes.deleteGeneration(req, res, generationMatch[1]);
+    }
 
     const downloadMatch = url.pathname.match(/^\/api\/generations\/([^/]+)\/download$/);
     if (req.method === 'GET' && downloadMatch) return routes.download(req, res, downloadMatch[1]);

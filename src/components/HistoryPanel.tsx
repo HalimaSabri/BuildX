@@ -2,6 +2,7 @@ import React from 'react';
 import { APP_TEMPLATES } from '../utils/templates';
 import type { AppTemplate } from '../utils/templates';
 import { History, Clock, Cpu, Trash2, X, RefreshCw } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export interface HistoryEntry {
   id: string;
@@ -9,7 +10,9 @@ export interface HistoryEntry {
   prompt: string;
   dbType: string;
   backendType: string;
-  timestamp: number;
+  timestamp?: number;
+  createdAt?: string;
+  appName?: string;
 }
 
 interface HistoryPanelProps {
@@ -64,7 +67,35 @@ const TEMPLATE_COLORS: Record<string, string> = {
 };
 
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({ onClose, onRestore }) => {
-  const [entries, setEntries] = React.useState<HistoryEntry[]>(loadHistory);
+  const { user } = useAuth();
+  const [entries, setEntries] = React.useState<HistoryEntry[]>([]);
+  const [isLoading, setIsLoading] = React.useState<boolean>(true);
+
+  React.useEffect(() => {
+    const fetchHistory = async () => {
+      if (!user?.token) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const response = await fetch('http://127.0.0.1:5000/api/generations', {
+          headers: {
+            'Authorization': `Bearer ${user.token}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setEntries(data.generations);
+        }
+      } catch (e) {
+        console.error('Fetch history error:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [user]);
 
   const handleRestore = (entry: HistoryEntry) => {
     const template = APP_TEMPLATES[entry.templateId];
@@ -74,16 +105,48 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ onClose, onRestore }
     }
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = entries.filter(en => en.id !== id);
-    setEntries(updated);
-    localStorage.setItem('auto_app_history', JSON.stringify(updated));
+    if (!user?.token) return;
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/api/generations/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${user.token}`
+        }
+      });
+      if (response.ok) {
+        setEntries(prev => prev.filter(en => en.id !== id));
+      } else {
+        alert('Erreur lors de la suppression de la génération.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erreur réseau lors de la suppression.');
+    }
   };
 
-  const handleClearAll = () => {
-    setEntries([]);
-    clearHistory();
+  const handleClearAll = async () => {
+    if (!user?.token || entries.length === 0) return;
+    const confirmClear = window.confirm('Êtes-vous sûr de vouloir supprimer tout l\'historique ?');
+    if (!confirmClear) return;
+    
+    try {
+      await Promise.all(
+        entries.map(entry =>
+          fetch(`http://127.0.0.1:5000/api/generations/${entry.id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${user.token}`
+            }
+          })
+        )
+      );
+      setEntries([]);
+    } catch (e) {
+      console.error('Error clearing history:', e);
+      alert('Une erreur est survenue lors de la suppression de tout l\'historique.');
+    }
   };
 
   return (
@@ -116,7 +179,19 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ onClose, onRestore }
 
         {/* Body */}
         <div className="history-panel-body">
-          {entries.length === 0 ? (
+          {isLoading ? (
+            <div className="history-empty">
+              <span className="spinner" style={{
+                width: '30px',
+                height: '30px',
+                border: '3px solid rgba(99, 102, 241, 0.2)',
+                borderTopColor: 'var(--accent-primary)',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></span>
+              <p>Chargement de l'historique...</p>
+            </div>
+          ) : entries.length === 0 ? (
             <div className="history-empty">
               <Cpu size={36} style={{ color: 'var(--text-muted)', strokeWidth: 1.2 }} />
               <p>Aucune génération dans l'historique.</p>
@@ -126,6 +201,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ onClose, onRestore }
             entries.map((entry) => {
               const template = APP_TEMPLATES[entry.templateId];
               const color = TEMPLATE_COLORS[entry.templateId] || 'var(--accent-primary)';
+              const timestamp = entry.timestamp || (entry.createdAt ? new Date(entry.createdAt).getTime() : Date.now());
               return (
                 <div
                   key={entry.id}
@@ -137,11 +213,11 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ onClose, onRestore }
                   <div className="history-entry-content">
                     <div className="history-entry-header">
                       <span className="history-entry-name">
-                        {template?.name ?? entry.templateId}
+                        {entry.appName || template?.name || entry.templateId}
                       </span>
                       <span className="history-entry-time">
                         <Clock size={11} />
-                        {formatTimestamp(entry.timestamp)}
+                        {formatTimestamp(timestamp)}
                       </span>
                     </div>
                     <p className="history-entry-prompt">{entry.prompt}</p>

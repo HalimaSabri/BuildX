@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { APP_TEMPLATES } from '../utils/templates';
 import type { AppTemplate } from '../utils/templates';
 import { exportProjectToZip, triggerDownload } from '../utils/exporter';
 import {
   Sparkles, Settings, Download, Cpu, RefreshCw, Layers,
-  Code, Play, CheckCircle2, AlertCircle, History, BarChart2,
+  Code, Play, CheckCircle2, AlertCircle, History,
   Search, X,
 } from 'lucide-react';
 import { CodeViewer } from './CodeViewer';
@@ -13,11 +12,8 @@ import { UmlVisualizer } from './UmlVisualizer';
 import { LivePreview } from './LivePreview';
 import { KpiPanel } from './KpiPanel';
 import { BlueprintPanel } from './BlueprintPanel';
-import {
-  HistoryPanel, saveHistoryEntry, loadHistory,
-} from './HistoryPanel';
+import { HistoryPanel } from './HistoryPanel';
 import type { HistoryEntry } from './HistoryPanel';
-import { composeGeneratedProject } from '../utils/projectComposer';
 import type { BackendType, DatabaseType } from '../utils/projectComposer';
 
 // Helper to trigger confetti safely
@@ -79,7 +75,6 @@ export const AppGenerator: React.FC = () => {
   // ── UI state ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<ActiveTab>('blueprint');
   const [showHistory, setShowHistory] = useState<boolean>(false);
-  const [historyCount] = useState<number>(() => loadHistory().length);
 
   // ── Generation steps ──────────────────────────────────────────────────────
   const steps = [
@@ -124,44 +119,84 @@ export const AppGenerator: React.FC = () => {
     setProgress(0);
     setCurrentStep(0);
 
-    for (let stepIdx = 0; stepIdx < steps.length; stepIdx++) {
-      setCurrentStep(stepIdx);
-      const stepDuration = 900 + Math.random() * 400;
-      const stepsCount = 10;
-      const progressIncrement = 100 / steps.length / stepsCount;
-
-      for (let j = 0; j < stepsCount; j++) {
-        await new Promise<void>(resolve => setTimeout(resolve, stepDuration / stepsCount));
-        setProgress(prev => Math.min(Math.round(prev + progressIncrement), 100));
-      }
+    let generationPromise: Promise<any>;
+    if (user?.token) {
+      generationPromise = fetch('http://127.0.0.1:5000/api/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
+        body: JSON.stringify({
+          prompt,
+          backendType,
+          dbType,
+          templateId: selectedTemplateId
+        })
+      }).then(async res => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Erreur lors de la génération.');
+        }
+        return res.json();
+      });
+    } else {
+      generationPromise = Promise.reject(new Error('Utilisateur non authentifié.'));
     }
 
-    setProgress(100);
+    const runAnimation = async () => {
+      for (let stepIdx = 0; stepIdx < steps.length; stepIdx++) {
+        setCurrentStep(stepIdx);
+        const stepDuration = 900 + Math.random() * 400;
+        const stepsCount = 10;
+        const progressIncrement = 100 / steps.length / stepsCount;
 
-    const matchKey = inferTemplateId(prompt, selectedTemplateId);
-    const matched = APP_TEMPLATES[matchKey] ?? APP_TEMPLATES.ecommerce;
-    const composedProject = composeGeneratedProject(matched, { prompt, backendType, dbType });
-
-    setGeneratedApp(composedProject);
-    setActiveTab('blueprint');
-    setIsGenerating(false);
-
-    // Persist to history
-    const entry: HistoryEntry = {
-      id: genId(),
-      templateId: matched.id,
-      prompt,
-      dbType,
-      backendType,
-      timestamp: Date.now(),
+        for (let j = 0; j < stepsCount; j++) {
+          await new Promise<void>(resolve => setTimeout(resolve, stepDuration / stepsCount));
+          setProgress(prev => Math.min(Math.round(prev + progressIncrement), 100));
+        }
+      }
+      setProgress(100);
     };
-    saveHistoryEntry(entry);
 
-    triggerConfetti();
+    try {
+      const [apiResult] = await Promise.all([generationPromise, runAnimation()]);
+      const { generation } = apiResult;
+
+      setGeneratedApp({
+        ...generation.app,
+        generationId: generation.id
+      });
+      setActiveTab('blueprint');
+      triggerConfetti();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Une erreur est survenue lors de la génération.');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleDownload = async () => {
     if (!generatedApp) return;
+
+    if (generatedApp.generationId && user?.token) {
+      try {
+        const response = await fetch(`http://127.0.0.1:5000/api/generations/${generatedApp.generationId}/download`, {
+          headers: {
+            'Authorization': `Bearer ${user.token}`
+          }
+        });
+        if (response.ok) {
+          const blob = await response.blob();
+          triggerDownload(blob, `${generatedApp.id}-fullstack-project.zip`);
+          return;
+        }
+      } catch (e) {
+        console.error('Backend download error, falling back to frontend zip', e);
+      }
+    }
+
     try {
       const blob = await exportProjectToZip(generatedApp);
       triggerDownload(blob, `${generatedApp.id}-fullstack-project.zip`);
@@ -170,21 +205,33 @@ export const AppGenerator: React.FC = () => {
     }
   };
 
-  const handleRestoreFromHistory = (template: AppTemplate, entry: HistoryEntry) => {
-    const restoredDbType = entry.dbType as DatabaseType;
-    const restoredBackendType = entry.backendType as BackendType;
-    const composedProject = composeGeneratedProject(template, {
-      prompt: entry.prompt,
-      dbType: restoredDbType,
-      backendType: restoredBackendType,
-    });
-
-    setGeneratedApp(composedProject);
-    setPrompt(entry.prompt);
-    setSelectedTemplateId(entry.templateId);
-    setDbType(restoredDbType);
-    setBackendType(restoredBackendType);
-    setActiveTab('blueprint');
+  const handleRestoreFromHistory = async (template: AppTemplate, entry: HistoryEntry) => {
+    if (!user?.token) return;
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/api/generations/${entry.id}`, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const { generation } = data;
+        setGeneratedApp({
+          ...generation.app,
+          generationId: generation.id
+        });
+        setPrompt(generation.prompt);
+        setSelectedTemplateId(generation.templateId);
+        setDbType(generation.dbType as DatabaseType);
+        setBackendType(generation.backendType as BackendType);
+        setActiveTab('blueprint');
+      } else {
+        alert('Erreur lors de la récupération de la génération.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erreur réseau lors de la restauration.');
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────

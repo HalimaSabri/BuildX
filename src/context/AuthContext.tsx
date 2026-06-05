@@ -25,69 +25,98 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Load user from localStorage on mount
+  // Load user from localStorage on mount and validate token
   useEffect(() => {
-    const savedUser = localStorage.getItem('auto_app_user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        localStorage.removeItem('auto_app_user');
+    const validateToken = async () => {
+      const savedUserRaw = localStorage.getItem('auto_app_user');
+      if (savedUserRaw) {
+        try {
+          const savedUser = JSON.parse(savedUserRaw) as User;
+          if (savedUser.token) {
+            const response = await fetch('http://127.0.0.1:5000/api/auth/me', {
+              headers: {
+                'Authorization': `Bearer ${savedUser.token}`
+              }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              const loggedUser: User = {
+                ...data.user,
+                token: savedUser.token
+              };
+              setUser(loggedUser);
+              localStorage.setItem('auto_app_user', JSON.stringify(loggedUser));
+            } else {
+              localStorage.removeItem('auto_app_user');
+              setUser(null);
+            }
+          } else {
+            localStorage.removeItem('auto_app_user');
+            setUser(null);
+          }
+        } catch (e) {
+          localStorage.removeItem('auto_app_user');
+          setUser(null);
+        }
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    validateToken();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    // Mock validation
-    if (email && password.length >= 4) {
-      // Find or create user
-      let username = email.split('@')[0];
-      username = username.charAt(0).toUpperCase() + username.slice(1);
-      
-      // Check if user exists in local database or set a default role
-      const role: UserRole = email.toLowerCase().includes('admin') ? 'Admin' : 'User';
-      
-      const loggedUser: User = {
-        username,
-        email,
-        role,
-        token: 'mock-jwt-token-xyz'
-      };
-
-      setUser(loggedUser);
-      localStorage.setItem('auto_app_user', JSON.stringify(loggedUser));
-      setIsLoading(false);
-      return true;
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const loggedUser: User = {
+          ...data.user,
+          token: data.token,
+        };
+        setUser(loggedUser);
+        localStorage.setItem('auto_app_user', JSON.stringify(loggedUser));
+        setIsLoading(false);
+        return true;
+      }
+    } catch (e) {
+      console.error('Login error:', e);
     }
-    
     setIsLoading(false);
     return false;
   };
 
   const register = async (username: string, email: string, password: string, role: UserRole): Promise<boolean> => {
     setIsLoading(true);
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    if (username && email && password.length >= 4) {
-      const newUser: User = {
-        username,
-        email,
-        role,
-        token: 'mock-jwt-token-xyz'
-      };
-
-      setUser(newUser);
-      localStorage.setItem('auto_app_user', JSON.stringify(newUser));
-      setIsLoading(false);
-      return true;
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, email, password, role }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const newUser: User = {
+          ...data.user,
+          token: data.token,
+        };
+        setUser(newUser);
+        localStorage.setItem('auto_app_user', JSON.stringify(newUser));
+        setIsLoading(false);
+        return true;
+      }
+    } catch (e) {
+      console.error('Registration error:', e);
     }
-
     setIsLoading(false);
     return false;
   };

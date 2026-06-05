@@ -7,6 +7,7 @@ export interface GeneratedFile {
 
 export interface AppTemplate {
   id: string;
+  generationId?: string;
   name: string;
   icon: string;
   description: string;
