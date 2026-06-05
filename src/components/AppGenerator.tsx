@@ -31,30 +31,7 @@ const triggerConfetti = async () => {
   }
 };
 
-// Generates a simple unique ID
-const genId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-
 type ActiveTab = 'blueprint' | 'code' | 'uml' | 'preview' | 'kpis';
-
-const TEMPLATE_KEYWORDS: Record<string, string[]> = {
-  ecommerce: ['ecommerce', 'e-commerce', 'boutique', 'commerce', 'panier', 'produit', 'commande'],
-  delivery: ['delivery', 'livraison', 'logistique', 'livreur', 'colis', 'course', 'chauffeur'],
-  bi: ['bi', 'business intelligence', 'analytics', 'analytique', 'dashboard', 'kpi', 'statistique'],
-  school: ['school', 'scolaire', 'ecole', 'eleve', 'enseignant', 'classe', 'notes'],
-  hotel: ['hotel', 'hoteliere', 'reservation hotel', 'chambre', 'suite', 'facture'],
-  crm: ['crm', 'client', 'prospect', 'lead', 'pipeline', 'commercial', 'opportunite'],
-  pharmacy: ['pharmacy', 'pharmacie', 'medicament', 'ordonnance', 'stock', 'molecule'],
-  booking: ['booking', 'reservation', 'rendez-vous', 'rdv', 'planning', 'calendrier', 'creneau'],
-};
-
-const inferTemplateId = (prompt: string, fallbackId: string) => {
-  const normalized = prompt.toLowerCase();
-  const match = Object.entries(TEMPLATE_KEYWORDS).find(([, keywords]) =>
-    keywords.some((keyword) => normalized.includes(keyword)),
-  );
-
-  return match?.[0] ?? fallbackId;
-};
 
 export const AppGenerator: React.FC = () => {
   const { user } = useAuth();
