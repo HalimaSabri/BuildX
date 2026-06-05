@@ -1,0 +1,21 @@
+{
+  "users": [
+    {
+      "id": "usr_dbebeeaa33b130dc",
+      "username": "Admin",
+      "email": "admin@autoapp.ai",
+      "role": "Admin",
+      "passwordHash": "120000:4bcbc0f3b5445286545871d998c66991:e2342b5bfb9b7f926738a4fb7f939444378b99e5bd1d6e7b1a65e5617b57e8f5",
+      "createdAt": "2026-06-05T18:23:27.053Z"
+    },
+    {
+      "id": "usr_a15aabcb9f718537",
+      "username": "Developer",
+      "email": "developer@autoapp.ai",
+      "role": "User",
+      "passwordHash": "120000:5b4fb000861e28d2b5a270b834c96ede:3b72daddb721ca6571087b98a642fcc633243549b851758708e749c0035bb490",
+      "createdAt": "2026-06-05T18:23:27.289Z"
+    }
+  ],
+  "generations": []
+}
